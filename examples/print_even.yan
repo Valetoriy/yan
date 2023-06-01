@@ -1,0 +1,9 @@
+fn even_vals()
+    a = 12
+    while a > 0
+        if a % 2 == 0
+            print('a = ', a, '\n')
+
+        a = a - 1
+
+even_vals()

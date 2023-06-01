@@ -1,0 +1,34 @@
+<program> ::= { <statement> }
+
+/// В каждой строке кода может быть максимум один <statement>
+<statement> ::= <if_stmt>
+              | <while_stmt>
+              | <fn_decl>
+              | <expression>
+              | "return" <expression>
+              | "continue"
+              | "break"
+
+<if_stmt> ::= "if" <expression> { <statement> }
+              { "elif" <expression> { <statement> } }
+              [ "else" { <statement> } ]
+<while_stmt> ::= "while" <expression> { <statement> }
+<fn_decl> ::= "fn" ID "(" { ID "," } ")" { <statement> }
+
+<expression> ::= <binary_expr>
+               | <unary_expr>
+               | <fn_call>
+               | <builtin_fn_call>
+               | "(" <expression> ")"
+               | ID | NUMBER | STRING | BOOL | NIL
+
+<binary_expr> ::= <expression>
+                  ( "=" | "+" | "-" | "*" | "/" | "^" )
+                  <expression>
+<unary_expr> ::= "-" <expression> | <expression> "!"
+<fn_call> ::= ID "(" { <expression> "," } ")"
+<builtin_fn_call> ::= "print" "(" { <expression> "," } ")"
+                    | "cos" "(" <expression> ")"
+                    | "sin" "(" <expression> ")"
+
+/// Комментарии начинаются с "#"
