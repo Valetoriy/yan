@@ -1,0 +1,2 @@
+a = 12
+print(sin(cos(a % 12)))
