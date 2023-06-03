@@ -339,6 +339,10 @@ impl Lexer {
             self.pos += 1;
         }
 
+        if let None = self.curr_line.get(self.pos) {
+            return Err(err!(self, "unclosed string"));
+        }
+
         push_token!(self, Str { contents });
         Ok(())
     }

@@ -1,19 +1,31 @@
 use crate::lexer::*;
 
 #[derive(Debug)]
-pub enum Stmt {
+pub struct Stmt {
+    stype: StmtType,
+    line_num: usize,
+}
+
+impl Stmt {
+    pub fn new(stype: StmtType, line_num: usize) -> Self {
+        Self { stype, line_num }
+    }
+}
+
+#[derive(Debug)]
+pub enum StmtType {
     If {
-        cond_and_code: Vec<(Expr, Vec<Stmt>)>,
-        else_code: Vec<Stmt>,
+        cond_and_code: Vec<(Expr, Vec<StmtType>)>,
+        else_code: Vec<StmtType>,
     },
     While {
         cond: Expr,
-        code: Vec<Stmt>,
+        code: Vec<StmtType>,
     },
     FnDef {
         name: String,
         params: Vec<String>,
-        code: Vec<Stmt>,
+        code: Vec<StmtType>,
     },
     ExrpStmt(Expr),
     Return(Expr),
@@ -22,52 +34,23 @@ pub enum Stmt {
 }
 
 #[derive(Debug)]
-pub struct Expr {
-    etype: ExprType,
-    line_num: usize,
-}
-
-impl Expr {
-    pub fn new(etype: ExprType, line_num: usize) -> Self {
-        Self { etype, line_num }
-    }
-
-    fn from_tok(token: Token) -> Self {
-        use TokenType::*;
-        let etype = match token.ttype() {
-            Identifier { name } => ExprType::Identifier { name },
-            Number { value } => ExprType::Number { value },
-            Str { contents } => ExprType::Str { contents },
-            True => ExprType::Bool { value: true },
-            False => ExprType::Bool { value: false },
-            _ => unreachable!(),
-        };
-
-        Expr {
-            etype,
-            line_num: token.line_num(),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum ExprType {
+pub enum Expr {
     Binary {
-        lhs: Box<ExprType>,
+        lhs: Box<Expr>,
         op: TokenType,
-        rhs: Box<ExprType>,
+        rhs: Box<Expr>,
     },
     Unary {
         op: TokenType,
-        rhs: Box<ExprType>,
+        rhs: Box<Expr>,
     },
     FnCall {
         name: String,
-        args: Vec<ExprType>,
+        args: Vec<Expr>,
     },
     BuiltinFnCall {
         name: TokenType,
-        args: Vec<ExprType>,
+        args: Vec<Expr>,
     },
     Identifier {
         name: String,
@@ -83,6 +66,20 @@ pub enum ExprType {
     },
 }
 
+impl Expr {
+    fn from_tok(token: Token) -> Self {
+        use TokenType::*;
+        match token.ttype() {
+            Identifier { name } => Expr::Identifier { name },
+            Number { value } => Expr::Number { value },
+            Str { contents } => Expr::Str { contents },
+            True => Expr::Bool { value: true },
+            False => Expr::Bool { value: false },
+            _ => unreachable!(),
+        }
+    }
+}
+
 pub struct Parser {
     output: Vec<Stmt>,
 
@@ -90,7 +87,7 @@ pub struct Parser {
     pos: usize,
 }
 
-use ExprType::*;
+use Expr::*;
 use TokenType::*;
 impl Parser {
     pub fn parse(tokens: Vec<Token>) -> Result<Vec<Stmt>, String> {
@@ -136,9 +133,10 @@ impl Parser {
     }
 
     fn stmt(&mut self) -> Result<Stmt, String> {
-        let e = Stmt::ExrpStmt(self.expr(0)?);
+        let line_num = self.curr_tok().line_num();
+        let e = StmtType::ExrpStmt(self.expr(0)?);
         self.consume(Endl)?;
-        Ok(e)
+        Ok(Stmt::new(e, line_num))
     }
 
     fn expr(&mut self, prec_lvl: usize) -> Result<Expr, String> {
@@ -162,23 +160,17 @@ impl Parser {
             }
             Minus => {
                 self.next();
-                lhs = Expr::new(
-                    Unary {
-                        op: Minus,
-                        rhs: Box::new(self.expr(9000)?.etype),
-                    },
-                    c_t.line_num(),
-                );
+                lhs = Unary {
+                    op: Minus,
+                    rhs: Box::new(self.expr(9000)?),
+                };
             }
             Not => {
                 self.next();
-                lhs = Expr::new(
-                    Unary {
-                        op: Not,
-                        rhs: Box::new(self.expr(9000)?.etype),
-                    },
-                    c_t.line_num(),
-                );
+                lhs = Unary {
+                    op: Not,
+                    rhs: Box::new(self.expr(9000)?),
+                };
             }
             u => {
                 return Err(format!(
@@ -192,8 +184,16 @@ impl Parser {
         Ok(lhs)
     }
 
-    fn args(&mut self) -> Vec<Expr> {
+    fn args(&mut self) -> Result<Vec<Expr>, String> {
         self.next();
-        todo!()
+        let out = vec![];
+
+        while {
+            let t = self.curr_tok().ttype();
+            t != Rparen || t != Endl
+        } {}
+        self.consume(Rparen)?;
+
+        Ok(out)
     }
 }
