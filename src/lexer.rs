@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Token {
     ttype: TokenType,
 
@@ -30,7 +30,7 @@ impl Token {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     Number { value: f64 },
     Str { contents: String },
@@ -52,6 +52,8 @@ pub enum TokenType {
     Continue,
     Break,
 
+    And,
+    Or,
     True,
     False,
 
@@ -78,6 +80,23 @@ pub enum TokenType {
 
     // Конец линии
     Endl,
+}
+
+use TokenType::*;
+impl TokenType {
+    pub fn prec_lvl(&self) -> usize {
+        match self {
+            Equals => 1,
+            Or => 2,
+            And => 3,
+            EqEq | NotEq => 4,
+            Less | LessEq | Greater | GreaterEq => 5,
+            Plus | Minus => 6,
+            Mult | Div | Mod => 7,
+            Not => 8,
+            _ => unreachable!(),
+        }
+    }
 }
 
 pub struct Lexer {
@@ -115,7 +134,6 @@ macro_rules! err {
     };
 }
 
-use TokenType::*;
 impl Lexer {
     pub fn lex(src: &str) -> Result<Vec<Token>, String> {
         let mut l = Self {
@@ -170,7 +188,10 @@ impl Lexer {
                     let n = next!(self);
                     match n {
                         '=' => push_token!(self, EqEq),
-                        _ => push_token!(self, Equals),
+                        _ => {
+                            self.pos -= 1;
+                            push_token!(self, Equals);
+                        }
                     }
                 }
                 '(' => push_token!(self, Lparen),
@@ -187,21 +208,30 @@ impl Lexer {
                     let n = next!(self);
                     match n {
                         '=' => push_token!(self, LessEq),
-                        _ => push_token!(self, Less),
+                        _ => {
+                            self.pos -= 1;
+                            push_token!(self, Less);
+                        }
                     }
                 }
                 '>' => {
                     let n = next!(self);
                     match n {
                         '=' => push_token!(self, GreaterEq),
-                        _ => push_token!(self, Greater),
+                        _ => {
+                            self.pos -= 1;
+                            push_token!(self, Greater);
+                        }
                     }
                 }
                 '~' => {
                     let n = next!(self);
                     match n {
                         '=' => push_token!(self, NotEq),
-                        _ => push_token!(self, Not),
+                        _ => {
+                            self.pos -= 1;
+                            push_token!(self, Not);
+                        }
                     }
                 }
                 s => return Err(err!(self, "unexpected symbol {s}")),
@@ -267,6 +297,8 @@ impl Lexer {
             "continue" => Continue,
             "break" => Break,
 
+            "and" => And,
+            "or" => Or,
             "true" => True,
             "false" => False,
 

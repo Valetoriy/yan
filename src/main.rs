@@ -1,14 +1,13 @@
-use std::println;
-
 use clap::Parser;
 
 #[derive(Parser)]
-#[command(version, about = "Yazik dlya Nira")]
+#[command(version, about = "Yazik dlya NIRa")]
 struct Args {
     filename: String,
 }
 
 use yan::lexer::*;
+use yan::parser::*;
 
 fn main() {
     let args = Args::parse();
@@ -23,7 +22,16 @@ fn main() {
         std::process::exit(1);
     });
 
-    for token in tokens {
+    for token in &tokens {
         println!("{token:?}");
+    }
+
+    let stmts = yan::Parser::parse(tokens).unwrap_or_else(|e| {
+        println!("Error: {e}");
+        std::process::exit(1);
+    });
+
+    for stmt in &stmts {
+        println!("{stmt:#?}");
     }
 }
