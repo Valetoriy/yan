@@ -140,16 +140,33 @@ impl Parser {
     }
 
     fn expr(&mut self, prec_lvl: usize) -> Result<Expr, String> {
-        let lhs;
+        // Унарные операции
+        let mut lhs;
         let c_t = self.curr_tok();
         match c_t.ttype() {
             TokenType::Identifier { name } => {
                 self.next();
                 match self.curr_tok().ttype() {
-                    // Lparen => {
-                    // }
+                    Lparen => {
+                        lhs = FnCall {
+                            name,
+                            args: self.args()?,
+                        }
+                    }
                     _ => lhs = Expr::from_tok(c_t),
                 }
+            }
+            Print | Sin | Cos => {
+                self.next();
+                lhs = BuiltinFnCall {
+                    name: c_t.ttype(),
+                    args: self.args()?,
+                }
+            }
+            Lparen => {
+                self.next();
+                lhs = self.expr(0)?;
+                self.consume(Rparen)?;
             }
             TokenType::Number { value: _ }
             | TokenType::Str { contents: _ }
@@ -158,17 +175,10 @@ impl Parser {
                 self.next();
                 lhs = Expr::from_tok(c_t);
             }
-            Minus => {
+            Minus | Not => {
                 self.next();
                 lhs = Unary {
-                    op: Minus,
-                    rhs: Box::new(self.expr(9000)?),
-                };
-            }
-            Not => {
-                self.next();
-                lhs = Unary {
-                    op: Not,
+                    op: c_t.ttype(),
                     rhs: Box::new(self.expr(9000)?),
                 };
             }
@@ -181,18 +191,65 @@ impl Parser {
             }
         }
 
+        // Бинарные операции (кроме `!`, выше его проверять неудобно)
+        let mut c_ttype;
+        while {
+            c_ttype = self.curr_tok().ttype();
+            c_ttype.prec_lvl() >= prec_lvl
+        } {
+            match c_ttype {
+                Equals | Plus | Minus | Mult | Div | Mod | Pow | EqEq | NotEq | Less
+                | LessEq | Greater | GreaterEq | And | Or => {
+                    self.next();
+                    lhs = Binary {
+                        lhs: Box::new(lhs),
+                        op: c_ttype.clone(),
+                        rhs: Box::new(self.expr(c_ttype.prec_lvl() + 1)?),
+                    };
+                }
+                Fact => {
+                    self.next();
+                    lhs = Unary {
+                        op: Fact,
+                        rhs: Box::new(lhs),
+                    };
+                }
+                _ => break,
+            }
+        }
+
         Ok(lhs)
     }
 
     fn args(&mut self) -> Result<Vec<Expr>, String> {
-        self.next();
-        let out = vec![];
+        self.next(); // Едим `(`
+        let mut out = vec![];
 
-        while {
-            let t = self.curr_tok().ttype();
-            t != Rparen || t != Endl
-        } {}
-        self.consume(Rparen)?;
+        if self.curr_tok().ttype() == Rparen {
+            self.next();
+            return Ok(out);
+        }
+
+        loop {
+            out.push(self.expr(0)?);
+
+            let c_t = self.curr_tok();
+            match c_t.ttype() {
+                Rparen => break,
+                Comma => {
+                    self.next();
+                    continue;
+                }
+                u => {
+                    return Err(format!(
+                        "line {}: unexpected token: {:?}",
+                        c_t.line_num(),
+                        u
+                    ))
+                }
+            }
+        }
+        self.next(); // Едим `)`
 
         Ok(out)
     }

@@ -20,10 +20,10 @@
                | <fn_call>
                | <builtin_fn_call>
                | "(" <expression> ")"
-               | ID | NUMBER | STRING | BOOL | NIL
+               | ID | NUMBER | STRING | BOOL
 
 <binary_expr> ::= <expression>
-                  ( "=" | "+" | "-" | "*" | "/" | "^" |
+                  ( "=" | "+" | "-" | "*" | "/" | "%" | "^" |
                     "==" | "~=" | "<" | "<=" | ">" | ">=" | "and" | "or" )
                   <expression>
 <unary_expr> ::= ("-" | "~") <expression> | <expression> "!"

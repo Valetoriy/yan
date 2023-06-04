@@ -6,9 +6,6 @@ struct Args {
     filename: String,
 }
 
-use yan::lexer::*;
-use yan::parser::*;
-
 fn main() {
     let args = Args::parse();
 
@@ -17,7 +14,7 @@ fn main() {
         std::process::exit(1);
     };
 
-    let tokens = Lexer::lex(&src).unwrap_or_else(|e| {
+    let tokens = yan::Lexer::lex(&src).unwrap_or_else(|e| {
         println!("Error: {e}");
         std::process::exit(1);
     });

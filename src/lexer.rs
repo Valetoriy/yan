@@ -93,8 +93,9 @@ impl TokenType {
             Less | LessEq | Greater | GreaterEq => 5,
             Plus | Minus => 6,
             Mult | Div | Mod => 7,
-            Not => 8,
-            _ => unreachable!(),
+            Pow => 8,
+            Fact => 9,
+            _ => 0,
         }
     }
 }
@@ -122,15 +123,15 @@ macro_rules! next {
     ($lexer: ident) => {{
         $lexer.pos += 1;
         let Some(res) = $lexer.curr_line.get($lexer.pos) else {
-                                        return Err(err!($lexer, "unexpected line end"));
-                                    };
+                                            return err!($lexer, "unexpected line end");
+                                        };
         res
     }};
 }
 
 macro_rules! err {
     ($lexer: ident, $src: literal) => {
-        format!("line {}: ", $lexer.line_num) + &format!($src)
+        Err(format!("line {}: ", $lexer.line_num) + &format!($src))
     };
 }
 
@@ -177,6 +178,7 @@ impl Lexer {
 
         while let Some(c) = self.curr_line.get(self.pos) {
             match c {
+                '#' => break,
                 _ if c.is_whitespace() => {
                     self.pos += 1;
                     continue;
@@ -234,7 +236,7 @@ impl Lexer {
                         }
                     }
                 }
-                s => return Err(err!(self, "unexpected symbol {s}")),
+                s => return err!(self, "unexpected symbol {s}"),
             }
 
             self.pos += 1;
@@ -257,7 +259,7 @@ impl Lexer {
         }
 
         let Ok(value) = num_str.parse::<f64>() else {
-            return Err(err!(self, "invalid number: '{num_str}'"))
+            return err!(self, "invalid number: '{num_str}'")
         };
 
         push_token!(self, Number { value });
@@ -325,10 +327,7 @@ impl Lexer {
                     match esc {
                         'n' => c = '\n',
                         other => {
-                            return Err(err!(
-                                self,
-                                "unsupported escape sequence: \\{other}"
-                            ))
+                            return err!(self, "unsupported escape sequence: \\{other}")
                         }
                     }
                 }
@@ -340,7 +339,7 @@ impl Lexer {
         }
 
         if let None = self.curr_line.get(self.pos) {
-            return Err(err!(self, "unclosed string"));
+            return err!(self, "unclosed string");
         }
 
         push_token!(self, Str { contents });
