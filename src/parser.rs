@@ -15,17 +15,17 @@ impl Stmt {
 #[derive(Debug)]
 pub enum StmtType {
     If {
-        cond_and_code: Vec<(Expr, Vec<StmtType>)>,
-        else_code: Vec<StmtType>,
+        cond_and_code: Vec<(Expr, Vec<Stmt>)>,
+        else_code: Vec<Stmt>,
     },
     While {
         cond: Expr,
-        code: Vec<StmtType>,
+        code: Vec<Stmt>,
     },
     FnDef {
         name: String,
         params: Vec<String>,
-        code: Vec<StmtType>,
+        code: Vec<Stmt>,
     },
     ExrpStmt(Expr),
     Return(Expr),
@@ -87,6 +87,15 @@ pub struct Parser {
     pos: usize,
 }
 
+macro_rules! unexp {
+    ($line_num: expr, $token: expr) => {
+        Err(format!(
+            "line {}: unexpected token: {:?}",
+            $line_num, $token
+        ))
+    };
+}
+
 use Expr::*;
 use TokenType::*;
 impl Parser {
@@ -133,10 +142,108 @@ impl Parser {
     }
 
     fn stmt(&mut self) -> Result<Stmt, String> {
-        let line_num = self.curr_tok().line_num();
+        let c_t = self.curr_tok();
+        match c_t.ttype() {
+            If => {
+                // self.next();
+                // let cond = self.expr(0)?;
+                // self.consume(Endl)?;
+                // let code = self.stmt_block(c_t.tab_lvl())?;
+            }
+            While => {
+                self.next();
+                let cond = self.expr(0)?;
+                self.consume(Endl)?;
+                let code = self.stmt_block(c_t.tab_lvl())?;
+                return Ok(Stmt::new(StmtType::While { cond, code }, c_t.line_num()));
+            }
+            Fn => return self.fn_def(),
+            Return => {
+                self.next();
+                let r = StmtType::Return(self.expr(0)?);
+                self.consume(Endl)?;
+                return Ok(Stmt::new(r, c_t.line_num()));
+            }
+            Continue => {
+                self.next();
+                self.consume(Endl)?;
+                return Ok(Stmt::new(StmtType::Continue, c_t.line_num()));
+            }
+            Break => {
+                self.next();
+                self.consume(Endl)?;
+                return Ok(Stmt::new(StmtType::Break, c_t.line_num()));
+            }
+            _ => (),
+        }
+
         let e = StmtType::ExrpStmt(self.expr(0)?);
         self.consume(Endl)?;
-        Ok(Stmt::new(e, line_num))
+        Ok(Stmt::new(e, c_t.line_num()))
+    }
+
+    fn fn_def(&mut self) -> Result<Stmt, String> {
+        self.next(); // Едим `fn`
+
+        let name_tok = self.curr_tok();
+        let TokenType::Identifier {name} = name_tok.ttype() else {
+                    return Err(format!("line {}: expected function name, got: {:?}",
+                                       name_tok.line_num(), name_tok))
+                };
+        self.next();
+
+        let params = self.params()?;
+        self.consume(Endl)?;
+
+        let code = self.stmt_block(name_tok.tab_lvl())?;
+
+        return Ok(Stmt::new(
+            StmtType::FnDef { name, params, code },
+            name_tok.line_num(),
+        ));
+    }
+
+    fn params(&mut self) -> Result<Vec<String>, String> {
+        let mut out = vec![];
+        self.consume(Lparen)?;
+
+        if self.curr_tok().ttype() == Rparen {
+            self.next();
+            return Ok(out);
+        }
+
+        loop {
+            let c_t = self.curr_tok();
+
+            let TokenType::Identifier { name } = c_t.ttype() else {
+                return unexp!(c_t.line_num(), c_t.ttype())
+            };
+            self.next();
+            out.push(name);
+
+            let c_t = self.curr_tok();
+            match c_t.ttype() {
+                Comma => {
+                    self.next();
+                    continue;
+                }
+                Rparen => break,
+                u => return unexp!(c_t.line_num(), u),
+            }
+        }
+
+        self.consume(Rparen)?;
+        Ok(out)
+    }
+
+    fn stmt_block(&mut self, tab_lvl: usize) -> Result<Vec<Stmt>, String> {
+        let mut out = vec![];
+
+        while !self.is_done() && self.curr_tok().tab_lvl() > tab_lvl {
+            out.push(self.stmt()?);
+        }
+
+        Ok(out)
     }
 
     fn expr(&mut self, prec_lvl: usize) -> Result<Expr, String> {
@@ -182,13 +289,7 @@ impl Parser {
                     rhs: Box::new(self.expr(9000)?),
                 };
             }
-            u => {
-                return Err(format!(
-                    "line {}: unexpected token: {:?}",
-                    c_t.line_num(),
-                    u
-                ))
-            }
+            u => return unexp!(c_t.line_num(), u),
         }
 
         // Бинарные операции (кроме `!`, выше его проверять неудобно)
@@ -198,8 +299,18 @@ impl Parser {
             c_ttype.prec_lvl() >= prec_lvl
         } {
             match c_ttype {
-                Equals | Plus | Minus | Mult | Div | Mod | Pow | EqEq | NotEq | Less
-                | LessEq | Greater | GreaterEq | And | Or => {
+                Equals => {
+                    self.next();
+                    lhs = Binary {
+                        lhs: Box::new(lhs),
+                        op: Equals,
+                        // Не увеличиваем приоритет, чтобы корректно
+                        // работал синтаксис типа `a = b = 12`
+                        rhs: Box::new(self.expr(Equals.prec_lvl())?),
+                    };
+                }
+                Plus | Minus | Mult | Div | Mod | Pow | EqEq | NotEq | Less | LessEq
+                | Greater | GreaterEq | And | Or => {
                     self.next();
                     lhs = Binary {
                         lhs: Box::new(lhs),
@@ -240,13 +351,7 @@ impl Parser {
                     self.next();
                     continue;
                 }
-                u => {
-                    return Err(format!(
-                        "line {}: unexpected token: {:?}",
-                        c_t.line_num(),
-                        u
-                    ))
-                }
+                u => return unexp!(c_t.line_num(), u),
             }
         }
         self.next(); // Едим `)`
