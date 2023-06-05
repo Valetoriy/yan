@@ -1,0 +1,9 @@
+a = 12
+if a == 1
+    a = 2
+    if a == 2
+        print('ok')
+    else
+        print('sus')
+elif a == 12
+    print('???')

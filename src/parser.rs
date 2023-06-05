@@ -107,6 +107,10 @@ impl Parser {
         };
 
         while !p.is_done() {
+            let c_t = p.curr_tok();
+            if c_t.tab_lvl() != 0 {
+                return Err(format!("line: {}, unexpected indent", c_t.line_num()));
+            }
             let res = p.stmt()?;
             p.output.push(res);
         }
@@ -144,12 +148,7 @@ impl Parser {
     fn stmt(&mut self) -> Result<Stmt, String> {
         let c_t = self.curr_tok();
         match c_t.ttype() {
-            If => {
-                // self.next();
-                // let cond = self.expr(0)?;
-                // self.consume(Endl)?;
-                // let code = self.stmt_block(c_t.tab_lvl())?;
-            }
+            If => return self.if_stmt(),
             While => {
                 self.next();
                 let cond = self.expr(0)?;
@@ -180,6 +179,47 @@ impl Parser {
         let e = StmtType::ExrpStmt(self.expr(0)?);
         self.consume(Endl)?;
         Ok(Stmt::new(e, c_t.line_num()))
+    }
+
+    fn if_stmt(&mut self) -> Result<Stmt, String> {
+        let mut branches = vec![];
+        let if_t = self.curr_tok();
+        self.next(); // Едим `if`
+
+        let if_cond = self.expr(0)?;
+        self.consume(Endl)?;
+        let if_code = self.stmt_block(if_t.tab_lvl())?;
+        branches.push((if_cond, if_code));
+
+        let mut c_t;
+        while 'w: {
+            if self.is_done() {
+                break 'w false;
+            }
+
+            c_t = self.curr_tok();
+            c_t.ttype() == Elif
+        } {
+            self.next();
+            let elif_cond = self.expr(0)?;
+            self.consume(Endl)?;
+            branches.push((elif_cond, self.stmt_block(if_t.tab_lvl())?));
+        }
+
+        let mut else_code = vec![];
+        if !self.is_done() && self.curr_tok().ttype() == Else {
+            self.next();
+            self.consume(Endl)?;
+            else_code = self.stmt_block(if_t.tab_lvl())?;
+        }
+
+        Ok(Stmt::new(
+            StmtType::If {
+                cond_and_code: branches,
+                else_code,
+            },
+            if_t.line_num(),
+        ))
     }
 
     fn fn_def(&mut self) -> Result<Stmt, String> {
@@ -238,8 +278,17 @@ impl Parser {
 
     fn stmt_block(&mut self, tab_lvl: usize) -> Result<Vec<Stmt>, String> {
         let mut out = vec![];
+        let mut block_tab_lvl = 0;
 
         while !self.is_done() && self.curr_tok().tab_lvl() > tab_lvl {
+            let c_t = self.curr_tok();
+
+            if block_tab_lvl == 0 {
+                block_tab_lvl = c_t.tab_lvl();
+            } else if c_t.tab_lvl() != block_tab_lvl {
+                return Err(format!("line: {}, unexpected indent", c_t.line_num()));
+            }
+
             out.push(self.stmt()?);
         }
 
