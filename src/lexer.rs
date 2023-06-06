@@ -317,8 +317,7 @@ impl Lexer {
         self.pos += 1;
         let mut contents = String::new();
 
-        while let Some(c) = self.curr_line.get(self.pos) {
-            let mut c = *c; // Рофл из-за `.get()`
+        while let Some(&(mut c)) = self.curr_line.get(self.pos) {
             match c {
                 '\'' => break,
                 '\\' => {
