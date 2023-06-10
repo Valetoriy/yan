@@ -31,4 +31,9 @@ fn main() {
     for stmt in &stmts {
         println!("{stmt:#?}");
     }
+
+    yan::Evaluator::eval(stmts).unwrap_or_else(|e| {
+        println!("Error: {e}");
+        std::process::exit(1);
+    });
 }

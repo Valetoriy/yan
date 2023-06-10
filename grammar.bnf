@@ -29,7 +29,7 @@
 <unary_expr> ::= ("-" | "~") <expression> | <expression> "!"
 <fn_call> ::= ID "(" { <expression> "," } ")"
 <builtin_fn_call> ::= "print" "(" { <expression> "," } ")"
-                    | "cos" "(" <expression> ")"
                     | "sin" "(" <expression> ")"
+                    | "cos" "(" <expression> ")"
 
 /// Комментарии начинаются с "#"

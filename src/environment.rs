@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use crate::parser::*;
+use std::collections::HashMap;
 
 pub struct Environment {
     pub bindings: HashMap<String, RuntimeValue>,
@@ -13,9 +13,9 @@ impl Environment {
     }
 }
 
+#[derive(Debug, Clone)]
 pub enum RuntimeValue {
     Fn {
-        name: String,
         params: Vec<String>,
         code: Vec<Stmt>,
     },

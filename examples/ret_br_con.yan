@@ -1,0 +1,3 @@
+fn sus(a)
+    return a
+print(sus(100), '\n')

@@ -1,6 +1,6 @@
 use crate::lexer::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Stmt {
     stype: StmtType,
     line_num: usize,
@@ -10,9 +10,17 @@ impl Stmt {
     pub fn new(stype: StmtType, line_num: usize) -> Self {
         Self { stype, line_num }
     }
+
+    pub fn stype(&self) -> StmtType {
+        self.stype.clone()
+    }
+
+    pub fn line_num(&self) -> usize {
+        self.line_num
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum StmtType {
     If {
         cond_and_code: Vec<(Expr, Vec<Stmt>)>,
@@ -33,7 +41,7 @@ pub enum StmtType {
     Break,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expr {
     Binary {
         lhs: Box<Expr>,
