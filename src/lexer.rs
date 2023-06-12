@@ -304,6 +304,7 @@ impl Lexer {
             "true" => True,
             "false" => False,
 
+            // TODO(spff): Добавить `println`
             "print" => Print,
             "sin" => Sin,
             "cos" => Cos,

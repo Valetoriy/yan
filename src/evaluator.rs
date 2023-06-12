@@ -64,8 +64,27 @@ impl Evaluator {
             If {
                 cond_and_code,
                 else_code,
-            } => todo!(),
-            While { cond, code } => todo!(),
+            } => {
+                for (cond, code) in cond_and_code.iter() {
+                    if self.is_true(cond.clone(), stmt.line_num())? {
+                        return Ok(self.eval_block(code.clone())?);
+                    }
+                }
+
+                return Ok(self.eval_block(else_code)?);
+            }
+            While { cond, code } => {
+                // TODO(spff): Как-то убрать постоянное копирование `cond` и `code`
+                while self.is_true(cond.clone(), stmt.line_num())? {
+                    let res = self.eval_block(code.clone())?;
+                    match res.srtype {
+                        StmtResType::Ok | StmtResType::Continue => (),
+                        StmtResType::Break => break,
+                        StmtResType::Return(_) => return Ok(res),
+                    }
+                }
+                StmtResType::Ok
+            }
             FnDef { name, params, code } => {
                 self.top_env()
                     .bindings
@@ -88,8 +107,8 @@ impl Evaluator {
     fn eval_expr(&mut self, expr: Expr, line_num: usize) -> Result<RuntimeValue, String> {
         use Expr::*;
         match expr {
-            Binary { lhs, op, rhs } => todo!(),
-            Unary { op, rhs } => todo!(),
+            Binary { lhs, op, rhs } => self.eval_bin_op(*lhs, op, *rhs, line_num),
+            Unary { op, rhs } => self.eval_unary_op(op, *rhs, line_num),
             FnCall { name, args } => self.eval_fn_call(&name, args, line_num),
             BuiltinFnCall { name, args } => {
                 self.eval_builtin_fn_call(name, args, line_num)
@@ -100,6 +119,123 @@ impl Evaluator {
             },
             e => Ok(RuntimeValue::from_expr(e)),
         }
+    }
+
+    fn is_true(&mut self, expr: Expr, line_num: usize) -> Result<bool, String> {
+        match self.eval_expr(expr, line_num)? {
+            RuntimeValue::Bool { value } => Ok(value),
+            u => {
+                return Err(format!(
+                "line {line_num}: codition must evaluate to a boolean, got {u:?} instead"
+            ))
+            }
+        }
+    }
+
+    fn eval_bin_op(
+        &mut self,
+        lhs: Expr,
+        op: TokenType,
+        rhs: Expr,
+        line_num: usize,
+    ) -> Result<RuntimeValue, String> {
+        let rhs = self.eval_expr(rhs, line_num)?;
+
+        if op == TokenType::Equals {
+            let Expr::Identifier { name } = lhs else {
+                return Err(format!(
+                    "line {line_num}: LHS of an assignment operation is not an identifier"));
+            };
+
+            self.set_value(&name, rhs.clone());
+            return Ok(rhs);
+        }
+
+        let lhs = self.eval_expr(lhs, line_num)?;
+
+        // TODO(spff): Добавить операции со строками
+        use RuntimeValue::*;
+        Ok(match (&lhs, &rhs) {
+            (Number { value: lhs }, Number { value: rhs }) => {
+                use TokenType as TT;
+                match op {
+                    TT::Plus => Number { value: lhs + rhs },
+                    TT::Minus => Number { value: lhs - rhs },
+                    TT::Mult => Number { value: lhs * rhs },
+                    // При делении на 0 выдаёт `inf`, пусть так и будет
+                    TT::Div => Number { value: lhs / rhs },
+                    TT::Mod => Number {
+                        value: (*lhs as i64 % *rhs as i64) as f64,
+                    },
+                    TT::Pow => Number {
+                        value: lhs.powf(*rhs),
+                    },
+
+                    TT::EqEq => Bool { value: lhs == rhs },
+                    TT::NotEq => Bool { value: lhs != rhs },
+                    TT::Less => Bool { value: lhs < rhs },
+                    TT::LessEq => Bool { value: lhs <= rhs },
+                    TT::Greater => Bool { value: lhs > rhs },
+                    TT::GreaterEq => Bool { value: lhs >= rhs },
+
+                    TT::And | TT::Or => {
+                        return Err(format!(
+                        "line {line_num}: can't perform a logical {op:?} on two numbers"
+                    ))
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            (Bool { value: lhs }, Bool { value: rhs }) => {
+                use TokenType as TT;
+                match op {
+                    TT::EqEq => Bool { value: lhs == rhs },
+                    TT::NotEq => Bool { value: lhs != rhs },
+                    TT::And => Bool {
+                        value: *lhs && *rhs,
+                    },
+                    TT::Or => Bool {
+                        value: *lhs || *rhs,
+                    },
+                    _ => {
+                        return Err(
+                            format!(
+                        "line {line_num}: can't perform an arithmetic {op:?} on two booleans"),
+                        )
+                    }
+                }
+            }
+            (_, _) => {
+                return Err(format!(
+                    "line {line_num}: can't perform binary operation ({op:?}) \
+                    on {lhs:?} and {rhs:?}"
+                ))
+            }
+        })
+    }
+
+    fn eval_unary_op(
+        &mut self,
+        op: TokenType,
+        rhs: Expr,
+        line_num: usize,
+    ) -> Result<RuntimeValue, String> {
+        let rhs = self.eval_expr(rhs, line_num)?;
+
+        use RuntimeValue::*;
+        use TokenType as TT;
+        Ok(match (op, rhs) {
+            (TT::Not, Bool { value }) => RuntimeValue::Bool { value: !value },
+            (TT::Minus, Number { value }) => RuntimeValue::Number { value: -value },
+            (TT::Fact, Number { value }) => RuntimeValue::Number {
+                value: (1..value as i64).product::<i64>() as f64,
+            },
+            (o, r) => {
+                return Err(format!(
+                    "line {line_num}: can't perform unary operation ({o:?}) on {r:?}"
+                ))
+            }
+        })
     }
 
     fn eval_fn_call(
@@ -235,5 +371,16 @@ impl Evaluator {
         }
 
         None
+    }
+
+    fn set_value(&mut self, name: &str, value: RuntimeValue) {
+        for env in self.env_stack.iter_mut().rev() {
+            if let Some(v) = env.bindings.get_mut(name) {
+                *v = value;
+                return;
+            }
+        }
+
+        self.top_env().bindings.insert(name.to_owned(), value);
     }
 }
