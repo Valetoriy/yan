@@ -1,5 +1,0 @@
-func()
-func((a))
-func(false, 'hello world', 12)
-
-print('hello world')

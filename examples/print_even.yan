@@ -1,8 +1,0 @@
-fn even_vals(a)
-    while a > 0
-        if a % 2 == 0
-            print('a = ', a, '\n')
-
-        a = a - 1
-
-even_vals()
