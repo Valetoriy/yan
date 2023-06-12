@@ -4,6 +4,13 @@ use clap::Parser;
 #[command(version, about = "Yazik dlya NIRa")]
 struct Args {
     filename: String,
+
+    ///Print lexer output
+    #[arg(short, long)]
+    lexer_output: bool,
+    ///Print parser output
+    #[arg(short, long)]
+    parser_output: bool,
 }
 
 fn main() {
@@ -18,18 +25,22 @@ fn main() {
         println!("Error: {e}");
         std::process::exit(1);
     });
-
-    for token in &tokens {
-        println!("{token:?}");
+    if args.lexer_output {
+        println!("Lexer output:");
+        for token in &tokens {
+            println!("{token:?}");
+        }
     }
 
     let stmts = yan::Parser::parse(tokens).unwrap_or_else(|e| {
         println!("Error: {e}");
         std::process::exit(1);
     });
-
-    for stmt in &stmts {
-        println!("{stmt:#?}");
+    if args.parser_output {
+        println!("Parser output:");
+        for stmt in &stmts {
+            println!("{stmt:#?}");
+        }
     }
 
     yan::Evaluator::eval(stmts).unwrap_or_else(|e| {
