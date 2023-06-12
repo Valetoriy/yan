@@ -228,7 +228,7 @@ impl Evaluator {
             (TT::Not, Bool { value }) => RuntimeValue::Bool { value: !value },
             (TT::Minus, Number { value }) => RuntimeValue::Number { value: -value },
             (TT::Fact, Number { value }) => RuntimeValue::Number {
-                value: (1..value as i64).product::<i64>() as f64,
+                value: (1..=value as i64).product::<i64>() as f64,
             },
             (o, r) => {
                 return Err(format!(
