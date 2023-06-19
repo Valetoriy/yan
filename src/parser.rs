@@ -98,7 +98,7 @@ pub struct Parser {
 macro_rules! unexp {
     ($line_num: expr, $token: expr) => {
         Err(format!(
-            "line {}: unexpected token: {:?}",
+            "line {}: unexpected token: `{}`",
             $line_num, $token
         ))
     };
@@ -137,12 +137,11 @@ impl Parser {
         self.tokens[self.pos].clone()
     }
 
-    // TODO(spff): impl std::fmt::Display for TokenType
     fn consume(&mut self, token: TokenType) -> Result<(), String> {
         let curr_tok = self.curr_tok();
         if token != curr_tok.ttype() {
             return Err(format!(
-                "line {}: expected: {:?}, got: {:?}",
+                "line {}: expected: `{}`, got: `{}`",
                 curr_tok.line_num(),
                 token,
                 curr_tok.ttype()
@@ -235,9 +234,9 @@ impl Parser {
 
         let name_tok = self.curr_tok();
         let TokenType::Identifier {name} = name_tok.ttype() else {
-                    return Err(format!("line {}: expected function name, got: {:?}",
-                                       name_tok.line_num(), name_tok))
-                };
+            return Err(format!("line {}: expected function name, got: `{}`",
+               name_tok.line_num(), name_tok.ttype()))
+        };
         self.next();
 
         let params = self.params()?;
@@ -390,7 +389,7 @@ impl Parser {
     }
 
     fn args(&mut self) -> Result<Vec<Expr>, String> {
-        self.next(); // Едим `(`
+        self.consume(Lparen)?;
         let mut out = vec![];
 
         if self.curr_tok().ttype() == Rparen {

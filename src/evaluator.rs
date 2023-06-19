@@ -244,8 +244,6 @@ impl Evaluator {
         args: Vec<Expr>,
         line_num: usize,
     ) -> Result<RuntimeValue, String> {
-        // TODO(spff): Эта ошибка также вылезет если name - обычная переменная.
-        // Возможно, для этого случая нужна отдельная проверка
         let Some(RuntimeValue::Fn { params, code }) = self.get_value(name) else {
             return Err(format!(
                 "line {line_num}: call to an undefined function `{name}`"

@@ -101,6 +101,60 @@ impl TokenType {
     }
 }
 
+impl std::fmt::Display for TokenType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Number { value } => return write!(f, "number({value})"),
+            Str { contents } => return write!(f, "string('{contents}')"),
+            Identifier { name } => return write!(f, "identifier({name})"),
+
+            Equals => "=",
+            EqEq => "==",
+            Lparen => "(",
+            Rparen => ")",
+            Comma => ",",
+
+            If => "if",
+            Elif => "elif",
+            Else => "else",
+            While => "while",
+            Fn => "fn",
+            Return => "return",
+            Continue => "continue",
+            Break => "break",
+
+            And => "and",
+            Or => "or",
+            True => "true",
+            False => "false",
+
+            PrintL => "printl",
+            Print => "print",
+            Sin => "sin",
+            Cos => "cos",
+
+            Plus => "+",
+            Minus => "-",
+            Mult => "*",
+            Div => "/",
+            Mod => "%",
+            Pow => "^",
+            Fact => "!",
+
+            Less => "<",
+            LessEq => "<=",
+            Greater => ">",
+            GreaterEq => ">=",
+            Not => "~",
+            NotEq => "~=",
+
+            Endl => "end of line",
+        };
+
+        write!(f, "{s}")
+    }
+}
+
 pub struct Lexer {
     output: Vec<Token>,
 
@@ -327,6 +381,7 @@ impl Lexer {
 
                     match esc {
                         'n' => c = '\n',
+                        '\'' => c = '\'',
                         other => {
                             return err!(self, "unsupported escape sequence: \\{other}")
                         }
