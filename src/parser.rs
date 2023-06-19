@@ -320,7 +320,7 @@ impl Parser {
                     _ => lhs = Expr::from_tok(c_t),
                 }
             }
-            Print | Sin | Cos => {
+            PrintL | Print | Sin | Cos => {
                 self.next();
                 lhs = BuiltinFnCall {
                     name: c_t.ttype(),

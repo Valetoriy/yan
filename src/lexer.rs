@@ -57,6 +57,7 @@ pub enum TokenType {
     True,
     False,
 
+    PrintL,
     Print,
     Sin,
     Cos,
@@ -304,7 +305,7 @@ impl Lexer {
             "true" => True,
             "false" => False,
 
-            // TODO(spff): Добавить `println`
+            "printl" => PrintL,
             "print" => Print,
             "sin" => Sin,
             "cos" => Cos,

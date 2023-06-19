@@ -309,20 +309,31 @@ impl Evaluator {
 
         use TokenType::*;
         match name {
-            Print => {
+            PrintL | Print => {
+                if values.len() == 0 {
+                    return Err(format!(
+                        "line {line_num}: `print` or `printl` need at least 1 argument"
+                    ));
+                }
+
                 for value in values {
                     match value {
                         RuntimeValue::Number { value } => print!("{value}"),
                         RuntimeValue::Str { contents } => print!("{contents}"),
                         RuntimeValue::Bool { value } => print!("{value}"),
                         RuntimeValue::Nil => print!("nil"),
-                        _ => {
+                        RuntimeValue::Fn { params: _, code: _ } => {
                             return Err(format!(
                                 "line {line_num}: can't print a function"
                             ))
                         }
                     };
                 }
+
+                if name == PrintL {
+                    print!("\n");
+                }
+
                 Ok(RuntimeValue::Nil)
             }
             // TODO(spff): Переписать в макрос
