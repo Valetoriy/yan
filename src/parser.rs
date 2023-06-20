@@ -42,7 +42,41 @@ pub enum StmtType {
 }
 
 #[derive(Debug, Clone)]
-pub enum Expr {
+pub struct Expr {
+    etype: ExprType,
+    line_num: usize,
+}
+
+impl Expr {
+    pub fn new(etype: ExprType, line_num: usize) -> Self {
+        Self { etype, line_num }
+    }
+
+    pub fn etype(&self) -> ExprType {
+        self.etype.clone()
+    }
+
+    pub fn line_num(&self) -> usize {
+        self.line_num
+    }
+
+    fn from_tok(token: Token) -> Self {
+        use TokenType::*;
+        let etype = match token.ttype() {
+            Identifier { name } => ExprType::Identifier { name },
+            Number { value } => ExprType::Number { value },
+            Str { contents } => ExprType::Str { contents },
+            True => ExprType::Bool { value: true },
+            False => ExprType::Bool { value: false },
+            _ => unreachable!(),
+        };
+
+        Self::new(etype, token.line_num())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum ExprType {
     Binary {
         lhs: Box<Expr>,
         op: TokenType,
@@ -74,20 +108,6 @@ pub enum Expr {
     },
 }
 
-impl Expr {
-    fn from_tok(token: Token) -> Self {
-        use TokenType::*;
-        match token.ttype() {
-            Identifier { name } => Expr::Identifier { name },
-            Number { value } => Expr::Number { value },
-            Str { contents } => Expr::Str { contents },
-            True => Expr::Bool { value: true },
-            False => Expr::Bool { value: false },
-            _ => unreachable!(),
-        }
-    }
-}
-
 pub struct Parser {
     output: Vec<Stmt>,
 
@@ -104,7 +124,7 @@ macro_rules! unexp {
     };
 }
 
-use Expr::*;
+use ExprType::*;
 use TokenType::*;
 impl Parser {
     pub fn parse(tokens: Vec<Token>) -> Result<Vec<Stmt>, String> {
@@ -306,6 +326,7 @@ impl Parser {
         // Унарные операции
         let mut lhs;
         let c_t = self.curr_tok();
+        let line_num = c_t.line_num();
         match c_t.ttype() {
             TokenType::Identifier { name } => {
                 self.next();
@@ -316,7 +337,7 @@ impl Parser {
                             args: self.args()?,
                         }
                     }
-                    _ => lhs = Expr::from_tok(c_t),
+                    _ => lhs = Expr::from_tok(c_t).etype(),
                 }
             }
             PrintL | Print | Sin | Cos => {
@@ -328,7 +349,7 @@ impl Parser {
             }
             Lparen => {
                 self.next();
-                lhs = self.expr(0)?;
+                lhs = self.expr(0)?.etype();
                 self.consume(Rparen)?;
             }
             TokenType::Number { value: _ }
@@ -336,7 +357,7 @@ impl Parser {
             | True
             | False => {
                 self.next();
-                lhs = Expr::from_tok(c_t);
+                lhs = Expr::from_tok(c_t).etype;
             }
             Minus | Not => {
                 self.next();
@@ -358,7 +379,7 @@ impl Parser {
                 Equals => {
                     self.next();
                     lhs = Binary {
-                        lhs: Box::new(lhs),
+                        lhs: Box::new(Expr::new(lhs, line_num)),
                         op: Equals,
                         // Не увеличиваем приоритет, чтобы корректно
                         // работал синтаксис типа `a = b = 12`
@@ -369,7 +390,7 @@ impl Parser {
                 | Greater | GreaterEq | And | Or => {
                     self.next();
                     lhs = Binary {
-                        lhs: Box::new(lhs),
+                        lhs: Box::new(Expr::new(lhs, line_num)),
                         op: c_ttype.clone(),
                         rhs: Box::new(self.expr(c_ttype.prec_lvl() + 1)?),
                     };
@@ -378,14 +399,14 @@ impl Parser {
                     self.next();
                     lhs = Unary {
                         op: Fact,
-                        rhs: Box::new(lhs),
+                        rhs: Box::new(Expr::new(lhs, line_num)),
                     };
                 }
                 _ => break,
             }
         }
 
-        Ok(lhs)
+        Ok(Expr::new(lhs, line_num))
     }
 
     fn args(&mut self) -> Result<Vec<Expr>, String> {

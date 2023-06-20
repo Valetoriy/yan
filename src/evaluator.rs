@@ -1,4 +1,4 @@
-use crate::{Environment, Expr, RuntimeValue, Stmt, StmtType, TokenType};
+use crate::{Environment, Expr, ExprType, RuntimeValue, Stmt, StmtType, TokenType};
 
 pub struct StmtRes {
     srtype: StmtResType,
@@ -92,10 +92,10 @@ impl Evaluator {
                 StmtResType::Ok
             }
             ExrpStmt(e) => {
-                self.eval_expr(e, stmt.line_num())?;
+                self.eval_expr(e)?;
                 StmtResType::Ok
             }
-            Return(e) => StmtResType::Return(self.eval_expr(e, stmt.line_num())?),
+            Return(e) => StmtResType::Return(self.eval_expr(e)?),
             Continue => StmtResType::Continue,
             Break => StmtResType::Break,
         };
@@ -103,26 +103,25 @@ impl Evaluator {
         Ok(StmtRes::new(res, stmt.line_num()))
     }
 
-    // TODO(spff): Добавить line_num в Expr
-    fn eval_expr(&mut self, expr: Expr, line_num: usize) -> Result<RuntimeValue, String> {
-        use Expr::*;
-        match expr {
-            Binary { lhs, op, rhs } => self.eval_bin_op(*lhs, op, *rhs, line_num),
-            Unary { op, rhs } => self.eval_unary_op(op, *rhs, line_num),
-            FnCall { name, args } => self.eval_fn_call(&name, args, line_num),
+    fn eval_expr(&mut self, expr: Expr) -> Result<RuntimeValue, String> {
+        use ExprType::*;
+        match expr.etype() {
+            Binary { lhs, op, rhs } => self.eval_bin_op(*lhs, op, *rhs),
+            Unary { op, rhs } => self.eval_unary_op(op, *rhs),
+            FnCall { name, args } => self.eval_fn_call(&name, args, expr.line_num()),
             BuiltinFnCall { name, args } => {
-                self.eval_builtin_fn_call(name, args, line_num)
+                self.eval_builtin_fn_call(name, args, expr.line_num())
             }
             Identifier { name } => match self.get_value(&name) {
                 Some(v) => Ok(v.clone()),
                 None => Ok(RuntimeValue::Nil),
             },
-            e => Ok(RuntimeValue::from_expr(e)),
+            _ => Ok(RuntimeValue::from_expr(expr)),
         }
     }
 
     fn is_true(&mut self, expr: Expr, line_num: usize) -> Result<bool, String> {
-        match self.eval_expr(expr, line_num)? {
+        match self.eval_expr(expr)? {
             RuntimeValue::Bool { value } => Ok(value),
             u => {
                 return Err(format!(
@@ -137,23 +136,22 @@ impl Evaluator {
         lhs: Expr,
         op: TokenType,
         rhs: Expr,
-        line_num: usize,
     ) -> Result<RuntimeValue, String> {
-        let rhs = self.eval_expr(rhs, line_num)?;
+        let rhs = self.eval_expr(rhs)?;
 
         if op == TokenType::Equals {
-            let Expr::Identifier { name } = lhs else {
+            let ExprType::Identifier { name } = lhs.etype() else {
                 return Err(format!(
-                    "line {line_num}: LHS of an assignment operation is not an identifier"));
+                    "line {}: LHS of an assignment operation is not an identifier", lhs.line_num()));
             };
 
             self.set_value(&name, rhs.clone());
             return Ok(rhs);
         }
 
-        let lhs = self.eval_expr(lhs, line_num)?;
+        let line_num = lhs.line_num();
+        let lhs = self.eval_expr(lhs)?;
 
-        // TODO(spff): Добавить операции со строками
         use RuntimeValue::*;
         Ok(match (&lhs, &rhs) {
             (Number { value: lhs }, Number { value: rhs }) => {
@@ -218,9 +216,9 @@ impl Evaluator {
         &mut self,
         op: TokenType,
         rhs: Expr,
-        line_num: usize,
     ) -> Result<RuntimeValue, String> {
-        let rhs = self.eval_expr(rhs, line_num)?;
+        let line_num = rhs.line_num();
+        let rhs = self.eval_expr(rhs)?;
 
         use RuntimeValue::*;
         use TokenType as TT;
@@ -260,7 +258,7 @@ impl Evaluator {
 
         let mut eargs = vec![];
         for arg in args {
-            eargs.push(self.eval_expr(arg, line_num)?);
+            eargs.push(self.eval_expr(arg)?);
         }
 
         // Почти как в `eval_block()`
@@ -302,7 +300,7 @@ impl Evaluator {
     ) -> Result<RuntimeValue, String> {
         let mut values = vec![];
         for arg in args {
-            values.push(self.eval_expr(arg, line_num)?);
+            values.push(self.eval_expr(arg)?);
         }
 
         use TokenType::*;

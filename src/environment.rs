@@ -34,10 +34,10 @@ pub enum RuntimeValue {
 impl RuntimeValue {
     pub fn from_expr(e: Expr) -> Self {
         use RuntimeValue::*;
-        match e {
-            Expr::Number { value } => Number { value },
-            Expr::Str { contents } => Str { contents },
-            Expr::Bool { value } => Bool { value },
+        match e.etype() {
+            ExprType::Number { value } => Number { value },
+            ExprType::Str { contents } => Str { contents },
+            ExprType::Bool { value } => Bool { value },
             _ => unreachable!(),
         }
     }
