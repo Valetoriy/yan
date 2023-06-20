@@ -17,8 +17,8 @@ impl Token {
         }
     }
 
-    pub fn ttype(&self) -> TokenType {
-        self.ttype.clone()
+    pub fn ttype(&self) -> &TokenType {
+        &self.ttype
     }
 
     pub fn line_num(&self) -> usize {
@@ -216,7 +216,7 @@ impl Lexer {
         }
 
         if l.output.is_empty() {
-            return Err(format!("source file contains no code"));
+            return Err("source file contains no code".to_owned());
         }
 
         Ok(l.output)
@@ -304,7 +304,7 @@ impl Lexer {
         let mut num_str = String::new();
 
         while let Some(c) = self.curr_line.get(self.pos) {
-            if !c.is_numeric() && !(*c == '.') {
+            if !c.is_numeric() && *c != '.' {
                 self.pos -= 1;
                 break;
             }
@@ -326,7 +326,7 @@ impl Lexer {
         let mut name = String::new();
 
         while let Some(c) = self.curr_line.get(self.pos) {
-            if !c.is_alphanumeric() && !(*c == '_') {
+            if !c.is_alphanumeric() && *c != '_' {
                 self.pos -= 1;
                 break;
             }
@@ -394,7 +394,7 @@ impl Lexer {
             self.pos += 1;
         }
 
-        if let None = self.curr_line.get(self.pos) {
+        if self.curr_line.get(self.pos).is_none() {
             return err!(self, "unclosed string");
         }
 

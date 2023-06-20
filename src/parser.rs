@@ -11,8 +11,8 @@ impl Stmt {
         Self { stype, line_num }
     }
 
-    pub fn stype(&self) -> StmtType {
-        self.stype.clone()
+    pub fn stype(&self) -> &StmtType {
+        &self.stype
     }
 
     pub fn line_num(&self) -> usize {
@@ -52,18 +52,17 @@ impl Expr {
         Self { etype, line_num }
     }
 
-    pub fn etype(&self) -> ExprType {
-        self.etype.clone()
+    pub fn etype(&self) -> &ExprType {
+        &self.etype
     }
 
     pub fn line_num(&self) -> usize {
         self.line_num
     }
 
-    fn from_tok(token: Token) -> Self {
+    fn from_tok(token: &Token) -> Self {
         use TokenType::*;
-        let etype = match token.ttype() {
-            Identifier { name } => ExprType::Identifier { name },
+        let etype = match token.ttype().clone() {
             Number { value } => ExprType::Number { value },
             Str { contents } => ExprType::Str { contents },
             True => ExprType::Bool { value: true },
@@ -159,7 +158,7 @@ impl Parser {
 
     fn consume(&mut self, token: TokenType) -> Result<(), String> {
         let curr_tok = self.curr_tok();
-        if token != curr_tok.ttype() {
+        if token != *curr_tok.ttype() {
             return Err(format!(
                 "line {}: expected: `{}`, got: `{}`",
                 curr_tok.line_num(),
@@ -176,36 +175,15 @@ impl Parser {
         let c_t = self.curr_tok();
         match c_t.ttype() {
             If => return self.if_stmt(),
-            While => {
-                self.next();
-                let cond = self.expr(0)?;
-                self.consume(Endl)?;
-                let code = self.stmt_block(c_t.tab_lvl())?;
-                return Ok(Stmt::new(StmtType::While { cond, code }, c_t.line_num()));
-            }
+            While => return self.while_stmt(),
             Fn => return self.fn_def(),
-            Return => {
-                self.next();
-                let r = StmtType::Return(self.expr(0)?);
-                self.consume(Endl)?;
-                return Ok(Stmt::new(r, c_t.line_num()));
-            }
-            Continue => {
-                self.next();
-                self.consume(Endl)?;
-                return Ok(Stmt::new(StmtType::Continue, c_t.line_num()));
-            }
-            Break => {
-                self.next();
-                self.consume(Endl)?;
-                return Ok(Stmt::new(StmtType::Break, c_t.line_num()));
-            }
+            Return => return self.ret_stmt(),
+            Continue => return self.cont_stmt(),
+            Break => return self.brk_stmt(),
             _ => (),
         }
 
-        let e = StmtType::ExrpStmt(self.expr(0)?);
-        self.consume(Endl)?;
-        Ok(Stmt::new(e, c_t.line_num()))
+        self.expr_stmt()
     }
 
     fn if_stmt(&mut self) -> Result<Stmt, String> {
@@ -225,7 +203,7 @@ impl Parser {
             }
 
             c_t = self.curr_tok();
-            c_t.ttype() == Elif
+            *c_t.ttype() == Elif
         } {
             self.next();
             let elif_cond = self.expr(0)?;
@@ -234,7 +212,7 @@ impl Parser {
         }
 
         let mut else_code = vec![];
-        if !self.is_done() && self.curr_tok().ttype() == Else {
+        if !self.is_done() && *self.curr_tok().ttype() == Else {
             self.next();
             self.consume(Endl)?;
             else_code = self.stmt_block(if_t.tab_lvl())?;
@@ -247,60 +225,6 @@ impl Parser {
             },
             if_t.line_num(),
         ))
-    }
-
-    fn fn_def(&mut self) -> Result<Stmt, String> {
-        self.next(); // Едим `fn`
-
-        let name_tok = self.curr_tok();
-        let TokenType::Identifier {name} = name_tok.ttype() else {
-            return Err(format!("line {}: expected function name, got: `{}`",
-               name_tok.line_num(), name_tok.ttype()))
-        };
-        self.next();
-
-        let params = self.params()?;
-        self.consume(Endl)?;
-
-        let code = self.stmt_block(name_tok.tab_lvl())?;
-
-        return Ok(Stmt::new(
-            StmtType::FnDef { name, params, code },
-            name_tok.line_num(),
-        ));
-    }
-
-    fn params(&mut self) -> Result<Vec<String>, String> {
-        let mut out = vec![];
-        self.consume(Lparen)?;
-
-        if self.curr_tok().ttype() == Rparen {
-            self.next();
-            return Ok(out);
-        }
-
-        loop {
-            let c_t = self.curr_tok();
-
-            let TokenType::Identifier { name } = c_t.ttype() else {
-                return unexp!(c_t.line_num(), c_t.ttype())
-            };
-            self.next();
-            out.push(name);
-
-            let c_t = self.curr_tok();
-            match c_t.ttype() {
-                Comma => {
-                    self.next();
-                    continue;
-                }
-                Rparen => break,
-                u => return unexp!(c_t.line_num(), u),
-            }
-        }
-
-        self.consume(Rparen)?;
-        Ok(out)
     }
 
     fn stmt_block(&mut self, tab_lvl: usize) -> Result<Vec<Stmt>, String> {
@@ -322,98 +246,175 @@ impl Parser {
         Ok(out)
     }
 
+    fn while_stmt(&mut self) -> Result<Stmt, String> {
+        let while_t = self.curr_tok();
+        self.next(); // Едим `while`
+
+        let cond = self.expr(0)?;
+        self.consume(Endl)?;
+
+        let code = self.stmt_block(while_t.tab_lvl())?;
+
+        Ok(Stmt::new(
+            StmtType::While { cond, code },
+            while_t.line_num(),
+        ))
+    }
+
+    fn fn_def(&mut self) -> Result<Stmt, String> {
+        self.next(); // Едим `fn`
+
+        let name_tok = self.curr_tok();
+        let TokenType::Identifier {name} = name_tok.ttype() else {
+            return Err(format!("line {}: expected function name, got: `{}`",
+               name_tok.line_num(), name_tok.ttype()))
+        };
+        self.next();
+
+        let params = self.params()?;
+        self.consume(Endl)?;
+
+        let code = self.stmt_block(name_tok.tab_lvl())?;
+
+        Ok(Stmt::new(
+            StmtType::FnDef {
+                name: name.clone(),
+                params,
+                code,
+            },
+            name_tok.line_num(),
+        ))
+    }
+
+    fn params(&mut self) -> Result<Vec<String>, String> {
+        let mut out = vec![];
+        self.consume(Lparen)?;
+
+        if *self.curr_tok().ttype() == Rparen {
+            self.next();
+            return Ok(out);
+        }
+
+        loop {
+            let c_t = self.curr_tok();
+
+            let TokenType::Identifier { name } = c_t.ttype() else {
+                return unexp!(c_t.line_num(), c_t.ttype())
+            };
+            self.next();
+            out.push(name.clone());
+
+            let c_t = self.curr_tok();
+            match c_t.ttype() {
+                Comma => {
+                    self.next();
+                    continue;
+                }
+                Rparen => break,
+                u => return unexp!(c_t.line_num(), u),
+            }
+        }
+
+        self.consume(Rparen)?;
+        Ok(out)
+    }
+
+    fn ret_stmt(&mut self) -> Result<Stmt, String> {
+        let ret_t = self.curr_tok();
+        self.next(); // Едим `return`
+
+        let r = StmtType::Return(self.expr(0)?);
+        self.consume(Endl)?;
+
+        Ok(Stmt::new(r, ret_t.line_num()))
+    }
+
+    fn cont_stmt(&mut self) -> Result<Stmt, String> {
+        let cont_t = self.curr_tok();
+        self.next(); // Едим `continue`
+
+        self.consume(Endl)?;
+
+        Ok(Stmt::new(StmtType::Continue, cont_t.line_num()))
+    }
+
+    fn brk_stmt(&mut self) -> Result<Stmt, String> {
+        let brk_t = self.curr_tok();
+        self.next(); // Едим `break`
+
+        self.consume(Endl)?;
+
+        Ok(Stmt::new(StmtType::Break, brk_t.line_num()))
+    }
+
+    fn expr_stmt(&mut self) -> Result<Stmt, String> {
+        let c_t = self.curr_tok();
+
+        let e = StmtType::ExrpStmt(self.expr(0)?);
+        self.consume(Endl)?;
+
+        Ok(Stmt::new(e, c_t.line_num()))
+    }
+
     fn expr(&mut self, prec_lvl: usize) -> Result<Expr, String> {
         // Унарные операции
-        let mut lhs;
         let c_t = self.curr_tok();
-        let line_num = c_t.line_num();
-        match c_t.ttype() {
-            TokenType::Identifier { name } => {
-                self.next();
-                match self.curr_tok().ttype() {
-                    Lparen => {
-                        lhs = FnCall {
-                            name,
-                            args: self.args()?,
-                        }
-                    }
-                    _ => lhs = Expr::from_tok(c_t).etype(),
-                }
-            }
-            PrintL | Print | Sin | Cos => {
-                self.next();
-                lhs = BuiltinFnCall {
-                    name: c_t.ttype(),
-                    args: self.args()?,
-                }
-            }
-            Lparen => {
-                self.next();
-                lhs = self.expr(0)?.etype();
-                self.consume(Rparen)?;
-            }
+        let mut lhs = match c_t.ttype() {
+            TokenType::Identifier { name } => self.ident_expr(name)?,
+            PrintL | Print | Sin | Cos => self.builtin_fn_call_expr(c_t)?,
+            Lparen => self.paren_expr()?,
             TokenType::Number { value: _ }
             | TokenType::Str { contents: _ }
             | True
-            | False => {
-                self.next();
-                lhs = Expr::from_tok(c_t).etype;
-            }
-            Minus | Not => {
-                self.next();
-                lhs = Unary {
-                    op: c_t.ttype(),
-                    rhs: Box::new(self.expr(9000)?),
-                };
-            }
+            | False => self.literal_expr(c_t)?,
+            Minus | Not => self.unary_expr(c_t)?,
             u => return unexp!(c_t.line_num(), u),
-        }
+        };
 
         // Бинарные операции (кроме `!`, выше его проверять неудобно)
         let mut c_ttype;
         while {
-            c_ttype = self.curr_tok().ttype();
+            c_ttype = self.curr_tok().ttype().clone();
             c_ttype.prec_lvl() >= prec_lvl
         } {
             match c_ttype {
-                Equals => {
-                    self.next();
-                    lhs = Binary {
-                        lhs: Box::new(Expr::new(lhs, line_num)),
-                        op: Equals,
-                        // Не увеличиваем приоритет, чтобы корректно
-                        // работал синтаксис типа `a = b = 12`
-                        rhs: Box::new(self.expr(Equals.prec_lvl())?),
-                    };
-                }
+                Equals => lhs = self.assign_expr(lhs)?,
                 Plus | Minus | Mult | Div | Mod | Pow | EqEq | NotEq | Less | LessEq
-                | Greater | GreaterEq | And | Or => {
-                    self.next();
-                    lhs = Binary {
-                        lhs: Box::new(Expr::new(lhs, line_num)),
-                        op: c_ttype.clone(),
-                        rhs: Box::new(self.expr(c_ttype.prec_lvl() + 1)?),
-                    };
-                }
-                Fact => {
-                    self.next();
-                    lhs = Unary {
-                        op: Fact,
-                        rhs: Box::new(Expr::new(lhs, line_num)),
-                    };
-                }
+                | Greater | GreaterEq | And | Or => lhs = self.binary_expr(lhs)?,
+                Fact => lhs = self.fact_expr(lhs)?,
                 _ => break,
             }
         }
 
-        Ok(Expr::new(lhs, line_num))
+        Ok(lhs)
+    }
+
+    fn ident_expr(&mut self, name: &str) -> Result<Expr, String> {
+        self.next(); // Едим имя
+        let c_t = self.curr_tok();
+
+        Ok(match self.curr_tok().ttype() {
+            Lparen => Expr::new(
+                FnCall {
+                    name: name.to_owned(),
+                    args: self.args()?,
+                },
+                c_t.line_num(),
+            ),
+            _ => Expr::new(
+                ExprType::Identifier {
+                    name: name.to_owned(),
+                },
+                c_t.line_num(),
+            ),
+        })
     }
 
     fn args(&mut self) -> Result<Vec<Expr>, String> {
         self.consume(Lparen)?;
         let mut out = vec![];
 
-        if self.curr_tok().ttype() == Rparen {
+        if *self.curr_tok().ttype() == Rparen {
             self.next();
             return Ok(out);
         }
@@ -434,5 +435,87 @@ impl Parser {
         self.next(); // Едим `)`
 
         Ok(out)
+    }
+
+    fn builtin_fn_call_expr(&mut self, name: Token) -> Result<Expr, String> {
+        self.next(); // Едим имя
+
+        Ok(Expr::new(
+            BuiltinFnCall {
+                name: name.ttype().clone(),
+                args: self.args()?,
+            },
+            name.line_num(),
+        ))
+    }
+
+    fn paren_expr(&mut self) -> Result<Expr, String> {
+        self.next(); // Едим `(`
+
+        let res = self.expr(0)?;
+        self.consume(Rparen)?;
+
+        Ok(res)
+    }
+
+    fn literal_expr(&mut self, value: Token) -> Result<Expr, String> {
+        self.next(); // Едим значение
+
+        Ok(Expr::from_tok(&value))
+    }
+
+    fn unary_expr(&mut self, op: Token) -> Result<Expr, String> {
+        self.next(); // Едим оператор
+
+        Ok(Expr::new(
+            Unary {
+                op: op.ttype().clone(),
+                rhs: Box::new(self.expr(9000)?),
+            },
+            op.line_num(),
+        ))
+    }
+
+    fn assign_expr(&mut self, lhs: Expr) -> Result<Expr, String> {
+        let line_num = self.curr_tok().line_num();
+        self.next(); // Едим `=`
+
+        Ok(Expr::new(
+            Binary {
+                lhs: Box::new(lhs),
+                op: Equals,
+                // Не увеличиваем приоритет, чтобы корректно
+                // работал синтаксис типа `a = b = 12`
+                rhs: Box::new(self.expr(Equals.prec_lvl())?),
+            },
+            line_num,
+        ))
+    }
+
+    fn binary_expr(&mut self, lhs: Expr) -> Result<Expr, String> {
+        let op = self.curr_tok();
+        self.next(); // Едим оператор
+
+        Ok(Expr::new(
+            Binary {
+                lhs: Box::new(lhs),
+                op: op.ttype().clone(),
+                rhs: Box::new(self.expr(op.ttype().prec_lvl() + 1)?),
+            },
+            op.line_num(),
+        ))
+    }
+
+    fn fact_expr(&mut self, lhs: Expr) -> Result<Expr, String> {
+        let line_num = lhs.line_num();
+        self.next(); // Едим `!`
+
+        Ok(Expr::new(
+            Unary {
+                op: Fact,
+                rhs: Box::new(lhs),
+            },
+            line_num,
+        ))
     }
 }
