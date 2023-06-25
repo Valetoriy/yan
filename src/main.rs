@@ -26,10 +26,7 @@ fn main() {
         std::process::exit(1);
     });
     if args.lexer_output {
-        println!("Lexer output:");
-        for token in &tokens {
-            println!("{token:?}");
-        }
+        yan::print_tokens(&tokens);
     }
 
     let stmts = yan::Parser::parse(tokens).unwrap_or_else(|e| {
@@ -37,10 +34,7 @@ fn main() {
         std::process::exit(1);
     });
     if args.parser_output {
-        println!("Parser output:");
-        for stmt in &stmts {
-            println!("{stmt:#?}");
-        }
+        yan::print_stmts(&stmts);
     }
 
     yan::Evaluator::eval(&stmts).unwrap_or_else(|e| {

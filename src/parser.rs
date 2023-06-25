@@ -35,7 +35,7 @@ pub enum StmtType {
         params: Vec<String>,
         code: Vec<Stmt>,
     },
-    ExrpStmt(Expr),
+    ExprStmt(Expr),
     Return(Expr),
     Continue,
     Break,
@@ -350,7 +350,7 @@ impl Parser {
     fn expr_stmt(&mut self) -> Result<Stmt, String> {
         let c_t = self.curr_tok();
 
-        let e = StmtType::ExrpStmt(self.expr(0)?);
+        let e = StmtType::ExprStmt(self.expr(0)?);
         self.consume(Endl)?;
 
         Ok(Stmt::new(e, c_t.line_num()))

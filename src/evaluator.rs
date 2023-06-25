@@ -80,7 +80,7 @@ impl Evaluator {
             FnDef { name, params, code } => {
                 self.eval_fn_def(name, params, code, stmt.line_num())
             }
-            ExrpStmt(e) => self.eval_expr_stmt(e),
+            ExprStmt(e) => self.eval_expr_stmt(e),
             Return(e) => self.eval_ret_stmt(e, stmt.line_num()),
             Continue => Ok(StmtRes::new(StmtResType::Continue, stmt.line_num())),
             Break => Ok(StmtRes::new(StmtResType::Break, stmt.line_num())),
