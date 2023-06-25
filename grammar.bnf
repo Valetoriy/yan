@@ -28,7 +28,8 @@
                   <expression>
 <unary_expr> ::= ("-" | "~") <expression> | <expression> "!"
 <fn_call> ::= ID "(" { <expression> "," } ")"
-<builtin_fn_call> ::= "print" "(" { <expression> "," } ")"
+<builtin_fn_call> ::= "printl" "(" { <expression> "," } ")"
+                    | "print" "(" { <expression> "," } ")"
                     | "sin" "(" <expression> ")"
                     | "cos" "(" <expression> ")"
 
