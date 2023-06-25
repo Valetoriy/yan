@@ -147,6 +147,7 @@ fn print_expr(e: &Expr, mut padding: usize) {
             println!("Number({value})");
         }
         Str { contents } => {
+            let contents = contents.replace('\n', "\\n");
             println!("String('{contents}')");
         }
         Bool { value } => {
